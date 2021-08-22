@@ -1,0 +1,15 @@
+version: '3.3'
+
+services:
+    dto2data_php:
+        image: dh.rinsvent.ru/php8dev
+        container_name: dto2data_php
+        volumes:
+            - ./:/app
+        environment:
+            USE_COMPOSER_SCRIPTS: 0
+
+networks:
+    default:
+        external:
+            name: full-project
