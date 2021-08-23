@@ -28,18 +28,25 @@ class Dto2DataConverter
         return $this->convertByMap($object, $schema->map, $tags);
     }
 
-    public function convertByMap($objectData, Map $map, array $tags = []): array
+    public function convertByMap(object $object, array $map, array $tags = []): array
     {
         $data = [];
 
         $reflectionObject = new \ReflectionObject($object);
-        foreach ($map->properties as $propertyName => $childMap) {
+        foreach ($map as $propertyKey => $property) {
+            if (is_array($property)) {
+                $propertyName = $propertyKey;
+            } else {
+                $propertyName = $property;
+            }
+
             $property = new ReflectionProperty($object, $propertyName);
             $value = $this->getValue($object, $property);
-            if ($childMap && !is_scalar($value)) {
+            $childMap = $property;
+            if ($childMap && is_array($childMap) && !is_scalar($value)) {
                 if (is_array($value)) {
                     $tmpValue = [];
-                    foreach($value as $objectDataItem) {
+                    foreach ($value as $objectDataItem) {
                         $tmpValue[] = $this->convertByMap($objectDataItem, $childMap, $tags);
                     }
                     $value = $tmpValue;
@@ -53,22 +60,28 @@ class Dto2DataConverter
             $data[$dataPath] = $value;
         }
 
-        foreach ($map->methods as $methodName => $childMap) {
-            $method = new \ReflectionMethod($object, $methodName);
-            $value = $this->getMethodValue($object, $method);
-            if ($childMap) {
-                $value = $this->convertByMap($value, $childMap, $tags);
-            }
-            $this->processMethodTransformers($method, $value, $tags);
-            $dataPath = $this->grabMethodDataPath($method, $tags);
-            $dataPath = $dataPath ?? $propertyName;
-            $data[$dataPath] = $value;
-        }
+//        foreach ($map->methods as $methodName => $childMap) {
+//            $method = new \ReflectionMethod($object, $methodName);
+//            $value = $this->getMethodValue($object, $method);
+//            if ($childMap) {
+//                $value = $this->convertByMap($value, $childMap, $tags);
+//            }
+//            $this->processMethodTransformers($method, $value, $tags);
+//            $dataPath = $this->grabMethodDataPath($method, $tags);
+//            $dataPath = $dataPath ?? $propertyName;
+//            $data[$dataPath] = $value;
+//        }
 
         $this->processClassTransformers($reflectionObject, $data, $tags);
 
         return $data;
     }
+
+    public function convertArrayByMap(array $data, array $map, array $tags = []): array
+    {
+
+    }
+
 
     /**
      * Получаем теги для обработки

@@ -8,8 +8,10 @@ use Rinsvent\DTO2Data\DTO\Map;
 class Schema
 {
     public function __construct(
-        public Map $map,
+        public ?array $map = null,
         /** @var string[] $tags */
         public array $tags = ['default']
-    ) {}
+    ) {
+        $this->map = $map ?? $this->map;
+    }
 }
