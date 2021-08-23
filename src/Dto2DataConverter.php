@@ -2,6 +2,7 @@
 
 namespace Rinsvent\DTO2Data;
 
+use ReflectionMethod;
 use ReflectionProperty;
 use Rinsvent\AttributeExtractor\ClassExtractor;
 use Rinsvent\AttributeExtractor\MethodExtractor;
@@ -9,7 +10,6 @@ use Rinsvent\AttributeExtractor\PropertyExtractor;
 use Rinsvent\DTO2Data\Attribute\DataPath;
 use Rinsvent\DTO2Data\Attribute\HandleTags;
 use Rinsvent\DTO2Data\Attribute\Schema;
-use Rinsvent\DTO2Data\DTO\Map;
 use Rinsvent\DTO2Data\Resolver\TransformerResolverStorage;
 use Rinsvent\DTO2Data\Transformer\Meta;
 use Rinsvent\DTO2Data\Transformer\TransformerInterface;
@@ -25,63 +25,68 @@ class Dto2DataConverter
     {
         $tags = empty($tags) ? ['default'] : $tags;
         $schema = $this->grabSchema($object, $tags);
-        return $this->convertByMap($object, $schema->map, $tags);
+        return $this->convertObjectByMap($object, $schema->map, $tags);
     }
 
-    public function convertByMap(object $object, array $map, array $tags = []): array
+    public function convertObjectByMap(object $object, array $map, array $tags = []): array
     {
         $data = [];
 
         $reflectionObject = new \ReflectionObject($object);
-        foreach ($map as $propertyKey => $property) {
-            if (is_array($property)) {
-                $propertyName = $propertyKey;
+        foreach ($map as $key => $propertyInfo) {
+            $sourceName = is_array($propertyInfo) ? $key : $propertyInfo;
+
+            if (method_exists($object, $sourceName)) {
+                $reflectionSource = new ReflectionMethod($object, $sourceName);
+                $value = $this->getMethodValue($object, $reflectionSource);
+            } elseif (property_exists($object, $sourceName)) {
+                $reflectionSource = new ReflectionProperty($object, $sourceName);
+                $value = $this->getValue($object, $reflectionSource);
             } else {
-                $propertyName = $property;
+                continue;
             }
 
-            $property = new ReflectionProperty($object, $propertyName);
-            $value = $this->getValue($object, $property);
-            $childMap = $property;
-            if ($childMap && is_array($childMap) && !is_scalar($value)) {
-                if (is_array($value)) {
-                    $tmpValue = [];
-                    foreach ($value as $objectDataItem) {
-                        $tmpValue[] = $this->convertByMap($objectDataItem, $childMap, $tags);
-                    }
-                    $value = $tmpValue;
-                } else {
-                    $value = $this->convertByMap($value, $childMap, $tags);
+            if (is_object($value)) {
+                // Если у объекта нет карты, то не сериализуем.
+                if (!is_array($propertyInfo)) {
+                    continue;
                 }
+                $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
+            } elseif (is_iterable($value)) {
+                $tempValue = [];
+                foreach ($value as $item) {
+                    if (is_scalar($item)) {
+                        $tempValue[] = $item;
+                        continue;
+                    }
+                    if (is_array($item)) {
+                        continue;
+                    }
+                    if (is_object($item)) {
+                        $tempValue[] = $this->convertObjectByMap($item, $propertyInfo, $tags);
+                    }
+                }
+                $value = $tempValue;
+            } elseif (!is_scalar($value)) {
+                continue;
             }
-            $this->processTransformers($property, $value, $tags);
-            $dataPath = $this->grabDataPath($property, $tags);
-            $dataPath = $dataPath ?? $propertyName;
+
+            if (method_exists($object, $sourceName)) {
+                $this->processMethodTransformers($reflectionSource, $value, $tags);
+                $dataPath = $this->grabMethodDataPath($reflectionSource, $tags);
+            } else {
+                $this->processTransformers($reflectionSource, $value, $tags);
+                $dataPath = $this->grabDataPath($reflectionSource, $tags);
+            }
+
+            $dataPath = $dataPath ?? $sourceName;
             $data[$dataPath] = $value;
         }
-
-//        foreach ($map->methods as $methodName => $childMap) {
-//            $method = new \ReflectionMethod($object, $methodName);
-//            $value = $this->getMethodValue($object, $method);
-//            if ($childMap) {
-//                $value = $this->convertByMap($value, $childMap, $tags);
-//            }
-//            $this->processMethodTransformers($method, $value, $tags);
-//            $dataPath = $this->grabMethodDataPath($method, $tags);
-//            $dataPath = $dataPath ?? $propertyName;
-//            $data[$dataPath] = $value;
-//        }
 
         $this->processClassTransformers($reflectionObject, $data, $tags);
 
         return $data;
     }
-
-    public function convertArrayByMap(array $data, array $map, array $tags = []): array
-    {
-
-    }
-
 
     /**
      * Получаем теги для обработки
@@ -92,7 +97,7 @@ class Dto2DataConverter
         /** @var HandleTags $tagsMeta */
         if ($tagsMeta = $classExtractor->fetch(HandleTags::class)) {
             if (method_exists($object, $tagsMeta->method)) {
-                $reflectionMethod = new \ReflectionMethod($object, $tagsMeta->method);
+                $reflectionMethod = new ReflectionMethod($object, $tagsMeta->method);
                 if (!$reflectionMethod->isPublic()) {
                     $reflectionMethod->setAccessible(true);
                 }
@@ -150,7 +155,7 @@ class Dto2DataConverter
         }
     }
 
-    protected function processMethodTransformers(\ReflectionMethod $method, &$data, array $tags): void
+    protected function processMethodTransformers(ReflectionMethod $method, &$data, array $tags): void
     {
         $methodName = $method->getName();
         $methodExtractor = new MethodExtractor($method->class, $methodName);
@@ -196,7 +201,7 @@ class Dto2DataConverter
         return $value;
     }
 
-    private function getMethodValue(object $object, \ReflectionMethod $method)
+    private function getMethodValue(object $object, ReflectionMethod $method)
     {
         if (!$method->isPublic()) {
             $method->setAccessible(true);
@@ -242,7 +247,7 @@ class Dto2DataConverter
         return null;
     }
 
-    private function grabMethodDataPath(\ReflectionMethod $method, array $tags): ?string
+    private function grabMethodDataPath(ReflectionMethod $method, array $tags): ?string
     {
         $methodName = $method->getName();
         $methodExtractor = new MethodExtractor($method->class, $methodName);
