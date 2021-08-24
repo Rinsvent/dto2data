@@ -36,15 +36,11 @@ class Dto2DataConverter
         foreach ($map as $key => $propertyInfo) {
             $sourceName = is_array($propertyInfo) ? $key : $propertyInfo;
 
-            if (method_exists($object, $sourceName)) {
-                $reflectionSource = new ReflectionMethod($object, $sourceName);
-                $value = $this->getMethodValue($object, $reflectionSource);
-            } elseif (property_exists($object, $sourceName)) {
-                $reflectionSource = new ReflectionProperty($object, $sourceName);
-                $value = $this->getValue($object, $reflectionSource);
-            } else {
+            if (!method_exists($object, $sourceName) && !property_exists($object, $sourceName)) {
                 continue;
             }
+
+            $value = $this->grabValue($object, $sourceName);
 
             if (is_object($value)) {
                 // Если у объекта нет карты, то не сериализуем.
@@ -67,25 +63,54 @@ class Dto2DataConverter
                     }
                 }
                 $value = $tempValue;
-            } elseif (!is_scalar($value)) {
+            } elseif (!is_scalar($value) && null !== $value) {
                 continue;
             }
 
-            if (method_exists($object, $sourceName)) {
-                $this->processMethodTransformers($reflectionSource, $value, $tags);
-                $dataPath = $this->grabMethodDataPath($reflectionSource, $tags);
-            } else {
-                $this->processTransformers($reflectionSource, $value, $tags);
-                $dataPath = $this->grabDataPath($reflectionSource, $tags);
-            }
-
-            $dataPath = $dataPath ?? $sourceName;
+            $this->processIterationTransformers($object, $sourceName, $value, $tags);
+            $dataPath = $this->grabIterationDataPath($object, $sourceName, $tags);
             $data[$dataPath] = $value;
         }
 
         $this->processClassTransformers($reflectionObject, $data, $tags);
 
         return $data;
+    }
+
+    protected function grabValue(object $object, $sourceName)
+    {
+        if (method_exists($object, $sourceName)) {
+            $reflectionSource = new ReflectionMethod($object, $sourceName);
+            return $this->getMethodValue($object, $reflectionSource);
+        } elseif (property_exists($object, $sourceName)) {
+            $reflectionSource = new ReflectionProperty($object, $sourceName);
+            return $this->getValue($object, $reflectionSource);
+        }
+
+        return null;
+    }
+
+    public function processIterationTransformers(object $object, string $sourceName, &$value, array $tags): void
+    {
+        if (method_exists($object, $sourceName)) {
+            $reflectionSource = new ReflectionMethod($object, $sourceName);
+            $this->processMethodTransformers($reflectionSource, $value, $tags);
+        } elseif (property_exists($object, $sourceName)) {
+            $reflectionSource = new ReflectionProperty($object, $sourceName);
+            $this->processTransformers($reflectionSource, $value, $tags);
+        }
+    }
+
+    public function grabIterationDataPath(object $object, string $sourceName, array $tags): string
+    {
+        if (method_exists($object, $sourceName)) {
+            $reflectionSource = new ReflectionMethod($object, $sourceName);
+            $dataPath = $this->grabMethodDataPath($reflectionSource, $tags);
+        } elseif (property_exists($object, $sourceName)) {
+            $reflectionSource = new ReflectionProperty($object, $sourceName);
+            $dataPath = $this->grabDataPath($reflectionSource, $tags);
+        }
+        return $dataPath ?? $sourceName;
     }
 
     /**
