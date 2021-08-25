@@ -42,27 +42,12 @@ class Dto2DataConverter
 
             $value = $this->grabValue($object, $sourceName);
 
-            if (is_object($value)) {
-                // Если у объекта нет карты, то не сериализуем.
-                if (!is_array($propertyInfo)) {
-                    continue;
-                }
+            // Если нет карты, то не сериализуем.
+            if (is_object($value) && is_array($propertyInfo)) {
                 $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
             } elseif (is_iterable($value)) {
-                $tempValue = [];
-                foreach ($value as $item) {
-                    if (is_scalar($item)) {
-                        $tempValue[] = $item;
-                        continue;
-                    }
-                    if (is_array($item)) {
-                        continue;
-                    }
-                    if (is_object($item)) {
-                        $tempValue[] = $this->convertObjectByMap($item, $propertyInfo, $tags);
-                    }
-                }
-                $value = $tempValue;
+                $map = is_array($propertyInfo) ? $propertyInfo : null;
+                $value = $this->convertArrayByMap($value, $map, $tags);
             } elseif (!is_scalar($value) && null !== $value) {
                 continue;
             }
@@ -75,6 +60,26 @@ class Dto2DataConverter
         $this->processClassTransformers($reflectionObject, $data, $tags);
 
         return $data;
+    }
+
+    public function convertArrayByMap($data, ?array $map, array $tags = []): ?array
+    {
+        $tempValue = [];
+        foreach ($data as $key => $item) {
+            if (is_scalar($item)) {
+                $tempValue[$key] = $item;
+                continue;
+            }
+            if (is_iterable($item) && $map) {
+                $tempValue[$key] = $this->convertArrayByMap($item, $map, $tags);
+                continue;
+            }
+            if (is_object($item) && $map) {
+                $tempValue[$key] = $this->convertObjectByMap($item, $map, $tags);
+                continue;
+            }
+        }
+        return $tempValue ?: null;
     }
 
     protected function grabValue(object $object, $sourceName)

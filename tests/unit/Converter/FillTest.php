@@ -43,6 +43,22 @@ class FillTest extends \Codeception\Test\Unit
             $author1,
             $author2
         ];
+        $helloRequest->authors2 = [
+            [
+                "name" => "Tolkien"
+            ],
+            [
+                "name" => "Sapkovsky"
+            ]
+        ];
+        $helloRequest->authors3 = [
+            [
+                "name" => "Tolkien"
+            ],
+            [
+                "name" => "Sapkovsky"
+            ]
+        ];
         $buy = new BuyRequest();
         $buy->phrase = 'Buy buy!!!';
         $buy->length = 10;
@@ -53,25 +69,41 @@ class FillTest extends \Codeception\Test\Unit
         $helloRequest->bar = $bar;
 
         $dto = $dto2DataConverter->convert($helloRequest);
+        // codecept_debug(json_encode($dto));
 
-//        $this->assertEquals('asdf', $dto->surname);
-//        $this->assertEquals(3, $dto->age);
-//        $this->assertEquals([
-//            'sfdgsa',
-//            'af234f',
-//            'asdf33333'
-//        ], $dto->emails);
-//        $this->assertInstanceOf(BuyRequest::class, $dto->buy);
-//        $this->assertEquals('Buy buy!!!', $dto->buy->phrase);
-//        $this->assertEquals(10, $dto->buy->length);
-//        $this->assertEquals(true, $dto->buy->isFirst);
-//
-//        $this->assertCount(2, $dto->authors);
-//        $this->assertEquals('Tolkien', $dto->authors[0]->name);
-//        $this->assertEquals('Sapkovsky', $dto->authors[1]->name);
-//
-//        $this->assertInstanceOf(Bar::class, $dto->bar);
-//        $this->assertIsFloat($dto->bar->barField);
-//        $this->assertEquals(32.0, $dto->bar->barField);
+        $this->assertEquals([
+            "surname" => "asdf",
+            "fake_age" => 3,
+            "emails" => [
+                "sfdgsa",
+                "af234f",
+                "asdf33333"
+            ],
+            "authors" => [
+                [
+                    "name" => "Tolkien"
+                ],
+                [
+                    "name" => "Sapkovsky"
+                ]
+            ],
+            "authors2" => [
+                [
+                    "name" => "Tolkien"
+                ],
+                [
+                    "name" => "Sapkovsky"
+                ]
+            ],
+            "authors3" => null,
+            "buy" => [
+                "phrase" => "Buy buy!!!",
+                "length" => 10,
+                "isFirst" => true
+            ],
+            "bar" => [
+                "barField" => 32
+            ]
+        ], $dto);
     }
 }

@@ -14,6 +14,10 @@ class HelloSchema extends Schema
         'authors' => [
             'name',
         ],
+        'authors2' => [
+            'name',
+        ],
+        'authors3',
         'buy' => [
             'phrase',
             'length',

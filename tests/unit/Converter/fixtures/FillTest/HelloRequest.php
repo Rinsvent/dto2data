@@ -14,6 +14,8 @@ class HelloRequest
     public int $age;
     public array $emails;
     public array $authors;
+    public array $authors2;
+    public array $authors3;
     public BuyRequest $buy;
     public BarInterface $bar;
 }
