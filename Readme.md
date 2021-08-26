@@ -30,17 +30,18 @@ class Bar implements BarInterface
     public float $barField;
 }
 
+#[HelloSchema]
 class HelloRequest
 {
     #[Trim]
     public string $surname;
-    #[PropertyPath('fake_age')]
+    #[DataPath('fake_age')]
     public int $age;
     public array $emails;
-    #[DTOMeta(class: Author::class)]
     public array $authors;
+    public array $authors2;
+    public array $authors3;
     public BuyRequest $buy;
-    #[DTOMeta(class: Bar::class)]
     public BarInterface $bar;
 }
 ```
@@ -48,33 +49,85 @@ class HelloRequest
 ```php
 use Rinsvent\DTO2Data\Dto2DataConverter;
 
-$dto2DataConverter = new Dto2DataConverter();
-$dto = $dto2DataConverter->convert([
-    'surname' => '   asdf',
-    'fake_age' => 3,
-    'emails' => [
-        'sfdgsa',
-        'af234f',
-        'asdf33333'
+$helloRequest = new HelloRequest;
+$helloRequest->surname = '   asdf';
+$helloRequest->age = 3;
+$helloRequest->emails =[
+    'sfdgsa',
+    'af234f',
+    'asdf33333'
+];
+$author1 = new Author();
+$author1->name = 'Tolkien';
+$author2 = new Author();
+$author2->name = 'Sapkovsky';
+$helloRequest->authors = [
+    $author1,
+    $author2
+];
+$helloRequest->authors2 = [
+    [
+        "name" => "Tolkien"
     ],
-    'authors' => [
+    [
+        "name" => "Sapkovsky"
+    ]
+];
+$helloRequest->authors3 = [
+    [
+        "name" => "Tolkien"
+    ],
+    [
+        "name" => "Sapkovsky"
+    ]
+];
+$buy = new BuyRequest();
+$buy->phrase = 'Buy buy!!!';
+$buy->length = 10;
+$buy->isFirst = true;
+$helloRequest->buy = $buy;
+$bar = new Bar();
+$bar->barField = 32;
+$helloRequest->bar = $bar;
+
+$dto2DataConverter = new Dto2DataConverter();
+$dto = $dto2DataConverter->convert($helloRequest);
+```
+### Результат
+```php
+$dto = [
+    "surname" => "asdf",
+    "fake_age" => 3,
+    "emails" => [
+        "sfdgsa",
+        "af234f",
+        "asdf33333"
+    ],
+    "authors" => [
         [
-            'name' => 'Tolkien',
+            "name" => "Tolkien"
         ],
         [
-            'name' => 'Sapkovsky'
+            "name" => "Sapkovsky"
         ]
     ],
-    'buy' => [
-        'phrase' => 'Buy buy!!!',
-        'length' => 10,
-        'isFirst' => true,
-        'extraData2' => '1234'
+    "authors2" => [
+        [
+            "name" => "Tolkien"
+        ],
+        [
+            "name" => "Sapkovsky"
+        ]
     ],
-    'bar' => [
-        'barField' => 32
+    "authors3" => [],
+    "buy" => [
+        "phrase" => "Buy buy!!!",
+        "length" => 10,
+        "isFirst" => true
     ],
-    'extraData1' => 'qwer'
-], new HelloRequest);
+    "bar" => [
+        "barField" => 32
+    ]
+]
 ```
 
