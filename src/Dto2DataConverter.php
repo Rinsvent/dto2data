@@ -46,8 +46,8 @@ class Dto2DataConverter
             if (is_object($value) && is_array($propertyInfo)) {
                 $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
             } elseif (is_iterable($value)) {
-                $map = is_array($propertyInfo) ? $propertyInfo : null;
-                $value = $this->convertArrayByMap($value, $map, $tags);
+                $childMap = is_array($propertyInfo) ? $propertyInfo : null;
+                $value = $this->convertArrayByMap($value, $childMap, $tags);
             } elseif (!is_scalar($value) && null !== $value) {
                 continue;
             }
@@ -64,6 +64,8 @@ class Dto2DataConverter
 
     public function convertArrayByMap($data, ?array $map, array $tags = []): ?array
     {
+        $isAssociative = count($data) && !array_key_exists(0, $data);
+
         $tempValue = [];
         foreach ($data as $key => $item) {
             if (is_scalar($item)) {
@@ -79,7 +81,7 @@ class Dto2DataConverter
                 continue;
             }
         }
-        return $tempValue ?: null;
+        return $tempValue;
     }
 
     protected function grabValue(object $object, $sourceName)

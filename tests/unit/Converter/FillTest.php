@@ -95,7 +95,7 @@ class FillTest extends \Codeception\Test\Unit
                     "name" => "Sapkovsky"
                 ]
             ],
-            "authors3" => null,
+            "authors3" => [],
             "buy" => [
                 "phrase" => "Buy buy!!!",
                 "length" => 10,
