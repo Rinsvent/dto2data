@@ -7,6 +7,7 @@ use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\Author;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\Bar;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\BuyRequest;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\HelloRequest;
+use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\UUID;
 
 class FillTest extends \Codeception\Test\Unit
 {
@@ -67,6 +68,7 @@ class FillTest extends \Codeception\Test\Unit
         $bar = new Bar();
         $bar->barField = 32;
         $helloRequest->bar = $bar;
+        $helloRequest->uuid = new UUID('qwerqw-qwerqwe-werqw-qwerqw');
 
         $dto = $dto2DataConverter->convert($helloRequest);
         // codecept_debug(json_encode($dto));
@@ -103,7 +105,8 @@ class FillTest extends \Codeception\Test\Unit
             ],
             "bar" => [
                 "barField" => 32
-            ]
+            ],
+            'uuid' => 'qwerqw-qwerqwe-werqw-qwerqw'
         ], $dto);
     }
 }

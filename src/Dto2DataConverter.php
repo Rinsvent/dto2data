@@ -9,6 +9,7 @@ use Rinsvent\AttributeExtractor\MethodExtractor;
 use Rinsvent\AttributeExtractor\PropertyExtractor;
 use Rinsvent\DTO2Data\Attribute\DataPath;
 use Rinsvent\DTO2Data\Attribute\HandleTags;
+use Rinsvent\DTO2Data\Attribute\PropertyPath;
 use Rinsvent\DTO2Data\Attribute\Schema;
 use Rinsvent\DTO2Data\Resolver\TransformerResolverStorage;
 use Rinsvent\DTO2Data\Transformer\Meta;
@@ -40,7 +41,7 @@ class Dto2DataConverter
                 continue;
             }
 
-            $value = $this->grabValue($object, $sourceName);
+            $value = $this->grabValue($object, $sourceName, $tags);
 
             // Если нет карты, то не сериализуем.
             if (is_object($value) && is_array($propertyInfo)) {
@@ -84,13 +85,22 @@ class Dto2DataConverter
         return $tempValue;
     }
 
-    protected function grabValue(object $object, $sourceName)
+    protected function grabValue(object $object, $sourceName, array $tags)
     {
         if (method_exists($object, $sourceName)) {
             $reflectionSource = new ReflectionMethod($object, $sourceName);
             return $this->getMethodValue($object, $reflectionSource);
         } elseif (property_exists($object, $sourceName)) {
             $reflectionSource = new ReflectionProperty($object, $sourceName);
+            $propertyExtractor = new PropertyExtractor($object::class, $sourceName);
+            /** @var PropertyPath $propertyPath */
+            while ($propertyPath = $propertyExtractor->fetch(PropertyPath::class)) {
+                $filteredTags = array_diff($tags, $propertyPath->tags);
+                if (count($filteredTags) === count($tags)) {
+                    continue;
+                }
+                return $this->getValueByPath($object, $propertyPath->path);
+            }
             return $this->getValue($object, $reflectionSource);
         }
 
@@ -212,6 +222,41 @@ class Dto2DataConverter
         $storage = TransformerResolverStorage::getInstance();
         $resolver = $storage->get($meta::TYPE);
         return $resolver->resolve($meta);
+    }
+
+    private function getValueByPath($data, string $path)
+    {
+        $parts = explode('.', $path);
+        $length = count($parts);
+        $i = 1;
+        foreach ($parts as $part) {
+            // Если получили скалярное значение но прошли не весь путь, то вернем null
+            if (is_scalar($data) && $i < $length) {
+                return null;
+            }
+            // Если объекс реализует ArrayAccess, то получаем значение и идем дальше
+            if (is_object($data) && $data instanceof \ArrayAccess) {
+                $data = $data[$part] ?? null;
+                continue;
+            }
+            // Если объект, то достаем значение
+            if (is_object($data)) {
+                if (!property_exists($data, $part)) {
+                    return null;
+                }
+                $property = new ReflectionProperty($data, $part);
+                $data = $this->getValue($data, $property);
+                continue;
+            }
+            // Если массив, то достаем занчение и идем дальше
+            if (is_array($data)) {
+                $data = $data[$part] ?? null;
+                continue;
+            }
+            $i++;
+        }
+
+        return $data;
     }
 
     private function getValue(object $object, \ReflectionProperty $property)

@@ -25,6 +25,7 @@ class HelloSchema extends Schema
         ],
         'bar' => [
             'barField'
-        ]
+        ],
+        'uuid'
     ];
 }
