@@ -65,7 +65,7 @@ class Dto2DataConverter
 
     public function convertArrayByMap($data, ?array $map, array $tags = []): ?array
     {
-        $isAssociative = count($data) && !array_key_exists(0, $data);
+        // $isAssociative = count($data) && !array_key_exists(0, $data);
 
         $tempValue = [];
         foreach ($data as $key => $item) {

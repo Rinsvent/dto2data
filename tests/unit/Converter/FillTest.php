@@ -6,6 +6,8 @@ use Rinsvent\DTO2Data\Dto2DataConverter;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\Author;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\Bar;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\BuyRequest;
+use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\Collection;
+use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\CollectionItem;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\HelloRequest;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\UUID;
 
@@ -69,6 +71,13 @@ class FillTest extends \Codeception\Test\Unit
         $bar->barField = 32;
         $helloRequest->bar = $bar;
         $helloRequest->uuid = new UUID('qwerqw-qwerqwe-werqw-qwerqw');
+        $collection = new Collection();
+        $collection->items = [
+            new CollectionItem('3'),
+            new CollectionItem('1'),
+            new CollectionItem('2'),
+        ];
+        $helloRequest->collection = $collection;
 
         $dto = $dto2DataConverter->convert($helloRequest);
         // codecept_debug(json_encode($dto));
@@ -106,7 +115,18 @@ class FillTest extends \Codeception\Test\Unit
             "bar" => [
                 "barField" => 32
             ],
-            'uuid' => 'qwerqw-qwerqwe-werqw-qwerqw'
+            'uuid' => 'qwerqw-qwerqwe-werqw-qwerqw',
+            'collection' => [
+                [
+                    'value' => '3',
+                ],
+                [
+                    'value' => '1',
+                ],
+                [
+                    'value' => '2',
+                ],
+            ],
         ], $dto);
     }
 }

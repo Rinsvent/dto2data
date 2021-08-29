@@ -21,4 +21,5 @@ class HelloRequest
     public BarInterface $bar;
     #[PropertyPath(path: 'uuid.id')]
     public UUID $uuid;
+    public Collection $collection;
 }
