@@ -216,12 +216,12 @@ class Dto2DataConverter
 
     private function getValue(object $object, \ReflectionProperty $property)
     {
-        if (!$property->isInitialized($object)) {
-            return null;
-        }
-
         if (!$property->isPublic()) {
             $property->setAccessible(true);
+        }
+
+        if (!$property->isInitialized($object)) {
+            return null;
         }
 
         $value = $property->getValue($object);
