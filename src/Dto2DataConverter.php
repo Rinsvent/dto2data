@@ -44,11 +44,11 @@ class Dto2DataConverter
             $value = $this->grabValue($object, $sourceName, $tags);
 
             // Если нет карты, то не сериализуем.
-            if (is_object($value) && is_array($propertyInfo)) {
-                $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
-            } elseif (is_iterable($value)) {
+            if (is_iterable($value)) {
                 $childMap = is_array($propertyInfo) ? $propertyInfo : null;
                 $value = $this->convertArrayByMap($value, $childMap, $tags);
+            } elseif (is_object($value) && is_array($propertyInfo)) {
+                $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
             } elseif (!is_scalar($value) && null !== $value) {
                 continue;
             }
