@@ -22,7 +22,29 @@ class Dto2DataConverter
         return $this->processTags($object, $tags);
     }
 
-    public function convert(object $object, array $tags = []): array
+    public function convert($data, array $tags = []): array
+    {
+        if (!is_object($data) && !is_iterable($data)) {
+            throw new \InvalidArgumentException();
+        }
+        return is_iterable($data)
+            ? $this->convertArray($data, $tags)
+            : $this->convertObject($data, $tags);
+    }
+
+    public function convertArray(iterable $items, array $tags = []): array
+    {
+        $result = [];
+        foreach ($items as $item) {
+            if (!is_object($item)) {
+                throw new \InvalidArgumentException();
+            }
+            $result[] = $this->convertObject($item, $tags);
+        }
+        return $result;
+    }
+
+    public function convertObject(object $object, array $tags = []): array
     {
         $tags = empty($tags) ? ['default'] : $tags;
         $schema = $this->grabSchema($object, $tags);
