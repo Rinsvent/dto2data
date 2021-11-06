@@ -30,5 +30,6 @@ class HelloSchema extends Schema
         'collection' => [
             'value'
         ],
+        'createdAt'
     ];
 }

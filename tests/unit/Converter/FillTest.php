@@ -78,6 +78,7 @@ class FillTest extends \Codeception\Test\Unit
             new CollectionItem('2'),
         ];
         $helloRequest->collection = $collection;
+        $helloRequest->createdAt = new \DateTimeImmutable('2020-05-21 13:36:22');
 
         $dto = $dto2DataConverter->convert($helloRequest);
         // codecept_debug(json_encode($dto));
@@ -127,6 +128,7 @@ class FillTest extends \Codeception\Test\Unit
                     'value' => '2',
                 ],
             ],
+            'createdAt' => '2020-05-21T13:36:22+00:00'
         ], $dto);
     }
 }

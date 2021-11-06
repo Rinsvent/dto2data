@@ -4,6 +4,7 @@ namespace Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest;
 
 use Rinsvent\DTO2Data\Attribute\DataPath;
 use Rinsvent\DTO2Data\Attribute\PropertyPath;
+use Rinsvent\DTO2Data\Transformer\DateTimeFormat;
 use Rinsvent\DTO2Data\Transformer\Trim;
 
 #[HelloSchema]
@@ -22,4 +23,6 @@ class HelloRequest
     #[PropertyPath(path: 'uuid.id')]
     public UUID $uuid;
     public Collection $collection;
+    #[DateTimeFormat]
+    public \DateTimeImmutable $createdAt;
 }
