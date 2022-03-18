@@ -14,9 +14,20 @@ use Rinsvent\DTO2Data\Attribute\Schema;
 use Rinsvent\DTO2Data\Resolver\TransformerResolverStorage;
 use Rinsvent\DTO2Data\Transformer\Meta;
 use Rinsvent\DTO2Data\Transformer\TransformerInterface;
+use Symfony\Component\PropertyAccess\PropertyAccess;
+use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 
 class Dto2DataConverter
 {
+    private PropertyAccessorInterface $propertyAccessor;
+
+    public function __construct()
+    {
+        $this->propertyAccessor = PropertyAccess::createPropertyAccessorBuilder()
+            ->disableExceptionOnInvalidPropertyPath()
+            ->getPropertyAccessor();
+    }
+
     public function getTags(object $object, array $tags = []): array
     {
         return $this->processTags($object, $tags);
@@ -54,47 +65,42 @@ class Dto2DataConverter
     public function convertObjectByMap(object $object, array $map, array $tags = []): array
     {
         $data = [];
-
         $reflectionObject = new \ReflectionObject($object);
         foreach ($map as $key => $propertyInfo) {
-            $sourceName = is_array($propertyInfo) ? $key : $propertyInfo;
+            try {
+                $sourceName = is_array($propertyInfo) ? $key : $propertyInfo;
 
-            if (!method_exists($object, $sourceName) && !property_exists($object, $sourceName)) {
+                $value = $this->grabValue($object, $sourceName, $tags);
+
+                $canSkip = false;
+                // Если нет карты, то не сериализуем.
+                if (is_iterable($value)) {
+                    $childMap = is_array($propertyInfo) ? $propertyInfo : null;
+                    $value = $this->convertArrayByMap($value, $childMap, $tags);
+                } elseif (is_object($value) && is_array($propertyInfo)) {
+                    $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
+                } elseif (!is_scalar($value) && null !== $value) {
+                    $canSkip = true;
+                }
+
+                $this->processIterationTransformers($object, $sourceName, $value, $tags);
+
+                if ($canSkip && !is_scalar($value) && null !== $value) {
+                    continue;
+                }
+
+                $dataPath = $this->grabIterationDataPath($object, $sourceName, $tags);
+                $data[$dataPath] = $value;
+            } catch (\Throwable $e) {
                 continue;
             }
-
-            $value = $this->grabValue($object, $sourceName, $tags);
-
-            $canSkip = false;
-            // Если нет карты, то не сериализуем.
-            if (is_iterable($value)) {
-                $childMap = is_array($propertyInfo) ? $propertyInfo : null;
-                $value = $this->convertArrayByMap($value, $childMap, $tags);
-            } elseif (is_object($value) && is_array($propertyInfo)) {
-                $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
-            } elseif (!is_scalar($value) && null !== $value) {
-                $canSkip = true;
-            }
-
-            $this->processIterationTransformers($object, $sourceName, $value, $tags);
-
-            if ($canSkip && !is_scalar($value) && null !== $value) {
-                continue;
-            }
-
-            $dataPath = $this->grabIterationDataPath($object, $sourceName, $tags);
-            $data[$dataPath] = $value;
         }
-
         $this->processClassTransformers($reflectionObject, $data, $tags);
-
         return $data;
     }
 
     public function convertArrayByMap($data, ?array $map, array $tags = []): ?array
     {
-        // $isAssociative = count($data) && !array_key_exists(0, $data);
-
         $tempValue = [];
         foreach ($data as $key => $item) {
             if (is_scalar($item)) {
@@ -113,45 +119,47 @@ class Dto2DataConverter
         return $tempValue;
     }
 
-    protected function grabValue(object $object, $sourceName, array $tags)
+    protected function grabValue(object $object, string $sourceName, array $tags)
     {
-        if (method_exists($object, $sourceName)) {
-            $reflectionSource = new ReflectionMethod($object, $sourceName);
-            return $this->getMethodValue($object, $reflectionSource);
-        } elseif (property_exists($object, $sourceName)) {
-            $reflectionSource = new ReflectionProperty($object, $sourceName);
-            $propertyExtractor = new PropertyExtractor($object::class, $sourceName);
-            /** @var PropertyPath $propertyPath */
-            while ($propertyPath = $propertyExtractor->fetch(PropertyPath::class)) {
-                $filteredTags = array_diff($tags, $propertyPath->tags);
-                if (count($filteredTags) === count($tags)) {
-                    continue;
-                }
-                return $this->getValueByPath($object, $propertyPath->path);
-            }
-            return $this->getValue($object, $reflectionSource);
+        if (!method_exists($object, $sourceName) && !property_exists($object, $sourceName)) {
+            return $this->getValueByPath($object, $sourceName);
         }
-
-        return null;
+        $propertyExtractor = new PropertyExtractor($object::class, $sourceName);
+        /** @var PropertyPath $propertyPath */
+        while ($propertyPath = $propertyExtractor->fetch(PropertyPath::class)) {
+            $filteredTags = array_diff($tags, $propertyPath->tags);
+            if (count($filteredTags) === count($tags)) {
+                continue;
+            }
+            return $this->getValueByPath($object, $propertyPath->path);
+        }
+        return $this->getValueByPath($object, $sourceName);
     }
 
     public function processIterationTransformers(object $object, string $sourceName, &$value, array $tags): void
     {
-        if (method_exists($object, $sourceName)) {
-            $reflectionSource = new ReflectionMethod($object, $sourceName);
-            $this->processMethodTransformers($reflectionSource, $value, $tags);
-        } elseif (property_exists($object, $sourceName)) {
+        if (property_exists($object, $sourceName)) {
             $reflectionSource = new ReflectionProperty($object, $sourceName);
             $this->processTransformers($reflectionSource, $value, $tags);
+        }
+        $getter = $this->grabGetterName($object, $sourceName);
+        if ($getter) {
+            $reflectionSource = new ReflectionMethod($object, $getter);
+            $this->processMethodTransformers($reflectionSource, $value, $tags);
         }
     }
 
     public function grabIterationDataPath(object $object, string $sourceName, array $tags): string
     {
-        if (method_exists($object, $sourceName)) {
-            $reflectionSource = new ReflectionMethod($object, $sourceName);
+        $getter = $this->grabGetterName($object, $sourceName);
+        if ($getter) {
+            $reflectionSource = new ReflectionMethod($object, $getter);
             $dataPath = $this->grabMethodDataPath($reflectionSource, $tags);
-        } elseif (property_exists($object, $sourceName)) {
+            if ($dataPath) {
+                return $dataPath;
+            }
+        }
+        if (property_exists($object, $sourceName)) {
             $reflectionSource = new ReflectionProperty($object, $sourceName);
             $dataPath = $this->grabDataPath($reflectionSource, $tags);
         }
@@ -254,71 +262,11 @@ class Dto2DataConverter
 
     private function getValueByPath($data, string $path)
     {
-        $parts = explode('.', $path);
-        $length = count($parts);
-        $i = 1;
-        foreach ($parts as $part) {
-            // Если получили скалярное значение но прошли не весь путь, то вернем null
-            if (is_scalar($data) && $i < $length) {
-                return null;
-            }
-            // Если объекс реализует ArrayAccess, то получаем значение и идем дальше
-            if (is_object($data) && $data instanceof \ArrayAccess) {
-                $data = $data[$part] ?? null;
-                continue;
-            }
-            // Если объект, то достаем значение
-            if (is_object($data)) {
-                if (!property_exists($data, $part)) {
-                    return null;
-                }
-                $property = new ReflectionProperty($data, $part);
-                $data = $this->getValue($data, $property);
-                continue;
-            }
-            // Если массив, то достаем занчение и идем дальше
-            if (is_array($data)) {
-                $data = $data[$part] ?? null;
-                continue;
-            }
-            $i++;
-        }
-
-        return $data;
-    }
-
-    private function getValue(object $object, \ReflectionProperty $property)
-    {
-        if (!$property->isPublic()) {
-            $property->setAccessible(true);
-        }
-
-        if (!$property->isInitialized($object)) {
+        try {
+            return $this->propertyAccessor->getValue($data, $path);
+        } catch (\Throwable $e) {
             return null;
         }
-
-        $value = $property->getValue($object);
-
-        if (!$property->isPublic()) {
-            $property->setAccessible(false);
-        }
-
-        return $value;
-    }
-
-    private function getMethodValue(object $object, ReflectionMethod $method)
-    {
-        if (!$method->isPublic()) {
-            $method->setAccessible(true);
-        }
-
-        $value = $method->invoke($object);
-
-        if (!$method->isPublic()) {
-            $method->setAccessible(false);
-        }
-
-        return $value;
     }
 
     private function grabSchema(object $object, array $tags): ?Schema
@@ -365,6 +313,17 @@ class Dto2DataConverter
             return $dataPath->path;
         }
 
+        return null;
+    }
+
+    private function grabGetterName(object $object, string $sourceName): ?string
+    {
+        $prefixes = ['get', 'has', 'is'];
+        foreach ($prefixes as $prefix) {
+            if (method_exists($object, $prefix . ucfirst($sourceName))) {
+                return $prefix . ucfirst($sourceName);
+            }
+        }
         return null;
     }
 }

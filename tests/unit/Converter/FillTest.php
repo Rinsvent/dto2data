@@ -18,14 +18,6 @@ class FillTest extends \Codeception\Test\Unit
      */
     protected $tester;
 
-    protected function _before()
-    {
-    }
-
-    protected function _after()
-    {
-    }
-
     // tests
     public function testSuccessFillRequestData()
     {
@@ -80,6 +72,41 @@ class FillTest extends \Codeception\Test\Unit
         $helloRequest->collection = $collection;
         $helloRequest->createdAt = new \DateTimeImmutable('2020-05-21 13:36:22');
 
+        // private
+        $helloRequest->setPsurname('   asdf');
+        $helloRequest->setPage(3);
+        $helloRequest->setPemails([
+            'sfdgsa',
+            'af234f',
+            'asdf33333'
+        ]);
+        $helloRequest->setPauthors([
+            $author1,
+            $author2
+        ]);
+        $helloRequest->setPauthors2([
+            [
+                "name" => "Tolkien"
+            ],
+            [
+                "name" => "Sapkovsky"
+            ]
+        ]);
+        $helloRequest->setPauthors3([
+            [
+                "name" => "Tolkien"
+            ],
+            [
+                "name" => "Sapkovsky"
+            ]
+        ]);
+        $helloRequest->setPbuy($buy);
+        $helloRequest->setPbar($bar);
+        $helloRequest->setPuuid(new UUID('qwerqw-qwerqwe-werqw-qwerqw'));
+        $helloRequest->setPcollection($collection);
+        $helloRequest->setPcreatedAt(new \DateTimeImmutable('2020-05-21 13:36:22'));
+
+
         $dto = $dto2DataConverter->convert($helloRequest);
         // codecept_debug(json_encode($dto));
 
@@ -128,7 +155,55 @@ class FillTest extends \Codeception\Test\Unit
                     'value' => '2',
                 ],
             ],
-            'createdAt' => '2020-05-21T13:36:22+00:00'
+            'createdAt' => '2020-05-21T13:36:22+00:00',
+
+            "psurname" => "asdf",
+            "pfake_age" => 3,
+            "pemails" => [
+                "sfdgsa",
+                "af234f",
+                "asdf33333"
+            ],
+            "pauthors" => [
+                [
+                    "name" => "Tolkien"
+                ],
+                [
+                    "name" => "Sapkovsky"
+                ]
+            ],
+            "pauthors2" => [
+                [
+                    "name" => "Tolkien"
+                ],
+                [
+                    "name" => "Sapkovsky"
+                ]
+            ],
+            "pauthors3" => [],
+            "pbuy" => [
+                "phrase" => "Buy buy!!!",
+                "length" => 10,
+                "isFirst" => true
+            ],
+            "pbar" => [
+                "barField" => 32
+            ],
+            'puuid' => 'qwerqw-qwerqwe-werqw-qwerqw',
+            'pcollection' => [
+                [
+                    'value' => '3',
+                ],
+                [
+                    'value' => '1',
+                ],
+                [
+                    'value' => '2',
+                ],
+            ],
+            'pcreatedAt' => '2020-05-21T13:36:22+00:00',
+
+            'fake_Pdevdo' => 'getPdevdo',
         ], $dto);
     }
 }

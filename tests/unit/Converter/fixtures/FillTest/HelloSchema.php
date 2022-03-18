@@ -30,6 +30,32 @@ class HelloSchema extends Schema
         'collection' => [
             'value'
         ],
-        'createdAt'
+        'createdAt',
+
+        'psurname',
+        'page',
+        'pemails',
+        'pauthors' => [
+            'name',
+        ],
+        'pauthors2' => [
+            'name',
+        ],
+        'pauthors3',
+        'pbuy' => [
+            'phrase',
+            'length',
+            'isFirst',
+        ],
+        'pbar' => [
+            'barField'
+        ],
+        'puuid',
+        'pcollection' => [
+            'value'
+        ],
+        'pcreatedAt',
+
+        'pdevdo'
     ];
 }
