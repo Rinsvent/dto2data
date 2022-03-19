@@ -69,25 +69,17 @@ class Dto2DataConverter
         foreach ($map as $key => $propertyInfo) {
             try {
                 $sourceName = is_array($propertyInfo) ? $key : $propertyInfo;
-
                 $value = $this->grabValue($object, $sourceName, $tags);
 
-                $canSkip = false;
                 // Если нет карты, то не сериализуем.
                 if (is_iterable($value)) {
                     $childMap = is_array($propertyInfo) ? $propertyInfo : null;
                     $value = $this->convertArrayByMap($value, $childMap, $tags);
                 } elseif (is_object($value) && is_array($propertyInfo)) {
                     $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
-                } elseif (!is_scalar($value) && null !== $value) {
-                    $canSkip = true;
                 }
 
                 $this->processIterationTransformers($object, $sourceName, $value, $tags);
-
-                if ($canSkip && !is_scalar($value) && null !== $value) {
-                    continue;
-                }
 
                 $dataPath = $this->grabIterationDataPath($object, $sourceName, $tags);
                 $data[$dataPath] = $value;
