@@ -1,321 +1,168 @@
 <?php
+declare(strict_types=1);
 
 namespace Rinsvent\DTO2Data;
 
-use ReflectionMethod;
 use ReflectionProperty;
-use Rinsvent\AttributeExtractor\ClassExtractor;
 use Rinsvent\AttributeExtractor\MethodExtractor;
 use Rinsvent\AttributeExtractor\PropertyExtractor;
-use Rinsvent\DTO2Data\Attribute\DataPath;
-use Rinsvent\DTO2Data\Attribute\HandleTags;
-use Rinsvent\DTO2Data\Attribute\PropertyPath;
 use Rinsvent\DTO2Data\Attribute\Schema;
-use Rinsvent\DTO2Data\Resolver\TransformerResolverStorage;
-use Rinsvent\DTO2Data\Transformer\Meta;
-use Rinsvent\DTO2Data\Transformer\TransformerInterface;
+use Rinsvent\Transformer\Transformer;
+use Rinsvent\Transformer\Transformer\Meta;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 
 class Dto2DataConverter
 {
     private PropertyAccessorInterface $propertyAccessor;
+    private Transformer $transformer;
 
     public function __construct()
     {
         $this->propertyAccessor = PropertyAccess::createPropertyAccessorBuilder()
             ->disableExceptionOnInvalidPropertyPath()
+            ->enableMagicMethods()
             ->getPropertyAccessor();
+        $this->transformer = new Transformer();
     }
 
-    public function getTags(object $object, array $tags = []): array
+    public function convert($data, string $schemaClass): array
     {
-        return $this->processTags($object, $tags);
-    }
-
-    public function convert($data, array $tags = []): array
-    {
-        if (!is_object($data) && !is_iterable($data)) {
-            throw new \InvalidArgumentException();
+        $schema = new $schemaClass();
+        if (!$schema instanceof Schema) {
+            throw new \InvalidArgumentException(
+                'Schema should be instance of Rinsvent\DTO2Data\Attribute\Schema'
+            );
         }
-        return is_iterable($data)
-            ? $this->convertArray($data, $tags)
-            : $this->convertObject($data, $tags);
+        return $this->convertByMap($data, $schema->map);
     }
 
-    public function convertArray(iterable $items, array $tags = []): array
+    private function convertByMap($data, array $map): array
     {
         $result = [];
-        foreach ($items as $item) {
-            if (!is_object($item)) {
-                throw new \InvalidArgumentException();
+        if (is_iterable($data)) {
+            foreach ($data as $item) {
+                $result[] = $this->processItem($item, $map);
             }
-            $result[] = $this->convertObject($item, $tags);
+        } else {
+            $result = $this->processItem($data, $map);
         }
         return $result;
     }
 
-    public function convertObject(object $object, array $tags = []): array
+    private function processItem($data, array $map): array
     {
-        $tags = empty($tags) ? ['default'] : $tags;
-        $schema = $this->grabSchema($object, $tags);
-        return $this->convertObjectByMap($object, $schema->map, $tags);
-    }
-
-    public function convertObjectByMap(object $object, array $map, array $tags = []): array
-    {
-        $data = [];
-        $reflectionObject = new \ReflectionObject($object);
-        foreach ($map as $key => $propertyInfo) {
+        $result = [];
+        foreach ($map as $key => $item) {
             try {
-                $sourceName = is_array($propertyInfo) ? $key : $propertyInfo;
-                $value = $this->grabValue($object, $sourceName, $tags);
-
-                // Если нет карты, то не сериализуем.
-                if (is_iterable($value)) {
-                    $childMap = is_array($propertyInfo) ? $propertyInfo : null;
-                    $value = $this->convertArrayByMap($value, $childMap, $tags);
-                } elseif (is_object($value) && is_array($propertyInfo)) {
-                    $value = $this->convertObjectByMap($value, $propertyInfo, $tags);
+                switch (true) {
+                    // key -> propertyPath (===).
+                    case is_int($key) && is_string($item):
+                        $result[$item] = $this->grabValue($data, $item);
+                        $result[$item] = $this->transform($data, $item, $result[$item]);
+                        break;
+                    // key -> propertyPath (!==)
+                    case is_string($key) && is_string($item):
+                        $result[$key] = $this->grabValue($data, $item);
+                        $result[$key] = $this->transform($data, $item, $result[$key]);
+                        break;
+                    // key -> recursive data processing
+                    case is_string($key) && is_array($item):
+                        $result[$key] = $this->convertByMap($this->grabValue($data, $key), $item);
+                        break;
+                    // key -> virtual field
+                    case is_string($key) && is_callable($item):
+                        $result[$key] = call_user_func_array($item, [$data]);
+                        break;
+                    // key -> data processing with transformer
+                    case $item instanceof Meta:
+                    case (new $item) instanceof Meta:
+                        $meta = is_string($item) ? new $item : $item;
+                        $result[$key] = $this->transformer->transform($data, $meta);
+                        break;
+                    // key -> recursive data processing with other schema
+                    case $item instanceof Schema:
+                    case (new $item) instanceof Schema:
+                        $schemaClass = is_object($item) ? $item::class : $item;
+                        $result[$key] = $this->convert($data[$key] ?? null, $schemaClass);
+                        break;
+                    default:
+                        $result[$key] = null;
                 }
-
-                $this->processIterationTransformers($object, $sourceName, $value, $tags);
-
-                $dataPath = $this->grabIterationDataPath($object, $sourceName, $tags);
-                $data[$dataPath] = $value;
-            } catch (\Throwable $e) {
-                continue;
+            } catch (\Throwable) {
+                $result[$key] = null;
             }
         }
-        $this->processClassTransformers($reflectionObject, $data, $tags);
-        return $data;
+        return $result;
     }
 
-    public function convertArrayByMap($data, ?array $map, array $tags = []): ?array
+    private function transform(object|array|null $data, string $path, mixed $value): mixed
     {
-        $tempValue = [];
-        foreach ($data as $key => $item) {
-            if (is_scalar($item)) {
-                $tempValue[$key] = $item;
-                continue;
-            }
-            if (is_iterable($item) && $map) {
-                $tempValue[$key] = $this->convertArrayByMap($item, $map, $tags);
-                continue;
-            }
-            if (is_object($item) && $map) {
-                $tempValue[$key] = $this->convertObjectByMap($item, $map, $tags);
-                continue;
-            }
+        $metas = $this->grabTransformMetas($data, $path);
+        foreach ($metas as $meta) {
+            $value = $this->transformer->transform($value, $meta);
         }
-        return $tempValue;
+        return $value;
     }
 
-    protected function grabValue(object $object, string $sourceName, array $tags)
+    private function grabValue(object|array|null $value, string $path): mixed
     {
-        if (!method_exists($object, $sourceName) && !property_exists($object, $sourceName)) {
-            return $this->getValueByPath($object, $sourceName);
-        }
-        $propertyExtractor = new PropertyExtractor($object::class, $sourceName);
-        /** @var PropertyPath $propertyPath */
-        while ($propertyPath = $propertyExtractor->fetch(PropertyPath::class)) {
-            $filteredTags = array_diff($tags, $propertyPath->tags);
-            if (count($filteredTags) === count($tags)) {
-                continue;
-            }
-            return $this->getValueByPath($object, $propertyPath->path);
-        }
-        return $this->getValueByPath($object, $sourceName);
-    }
-
-    public function processIterationTransformers(object $object, string $sourceName, &$value, array $tags): void
-    {
-        if (property_exists($object, $sourceName)) {
-            $reflectionSource = new ReflectionProperty($object, $sourceName);
-            $this->processTransformers($reflectionSource, $value, $tags);
-        }
-        $getter = $this->grabGetterName($object, $sourceName);
-        if ($getter) {
-            $reflectionSource = new ReflectionMethod($object, $getter);
-            $this->processMethodTransformers($reflectionSource, $value, $tags);
-        }
-    }
-
-    public function grabIterationDataPath(object $object, string $sourceName, array $tags): string
-    {
-        $getter = $this->grabGetterName($object, $sourceName);
-        if ($getter) {
-            $reflectionSource = new ReflectionMethod($object, $getter);
-            $dataPath = $this->grabMethodDataPath($reflectionSource, $tags);
-            if ($dataPath) {
-                return $dataPath;
-            }
-        }
-        if (property_exists($object, $sourceName)) {
-            $reflectionSource = new ReflectionProperty($object, $sourceName);
-            $dataPath = $this->grabDataPath($reflectionSource, $tags);
-        }
-        return $dataPath ?? $sourceName;
-    }
-
-    /**
-     * Получаем теги для обработки
-     */
-    protected function processTags(object $object, array $tags): array
-    {
-        $classExtractor = new ClassExtractor($object::class);
-        /** @var HandleTags $tagsMeta */
-        if ($tagsMeta = $classExtractor->fetch(HandleTags::class)) {
-            if (method_exists($object, $tagsMeta->method)) {
-                $reflectionMethod = new ReflectionMethod($object, $tagsMeta->method);
-                if (!$reflectionMethod->isPublic()) {
-                    $reflectionMethod->setAccessible(true);
-                }
-                $methodTags = $reflectionMethod->invoke($object, ...[$tags]);
-                if (!$reflectionMethod->isPublic()) {
-                    $reflectionMethod->setAccessible(false);
-                }
-                return $methodTags;
-            }
-        }
-
-        return $tags;
-    }
-
-    /**
-     * Трнансформируем на уровне класса
-     */
-    protected function processClassTransformers(\ReflectionObject $object, &$data, array $tags): void
-    {
-        $className = $object->getName();
-        $classExtractor = new ClassExtractor($className);
-        /** @var Meta $transformMeta */
-        while ($transformMeta = $classExtractor->fetch(Meta::class)) {
-            $transformMeta->returnType = $className;
-            $filteredTags = array_diff($tags, $transformMeta->tags);
-            if (count($filteredTags) === count($tags)) {
-                continue;
-            }
-
-            $transformer = $this->grabTransformer($transformMeta);
-            $transformer->transform($data, $transformMeta);
-        }
-    }
-
-    /**
-     * Трнансформируем на уровне свойст объекта
-     */
-    protected function processTransformers(\ReflectionProperty $property, &$data, array $tags): void
-    {
-        $propertyName = $property->getName();
-        $propertyExtractor = new PropertyExtractor($property->class, $propertyName);
-        /** @var Meta $transformMeta */
-        while ($transformMeta = $propertyExtractor->fetch(Meta::class)) {
-            $filteredTags = array_diff($tags, $transformMeta->tags);
-            if (count($filteredTags) === count($tags)) {
-                continue;
-            }
-            /** @var \ReflectionNamedType $reflectionPropertyType */
-            $reflectionPropertyType = $property->getType();
-            $propertyType = $reflectionPropertyType->getName();
-            $transformMeta->returnType = $propertyType;
-            $transformMeta->allowsNull = $reflectionPropertyType->allowsNull();
-            $transformer = $this->grabTransformer($transformMeta);
-            $transformer->transform($data, $transformMeta);
-        }
-    }
-
-    protected function processMethodTransformers(ReflectionMethod $method, &$data, array $tags): void
-    {
-        $methodName = $method->getName();
-        $methodExtractor = new MethodExtractor($method->class, $methodName);
-        /** @var Meta $transformMeta */
-        while ($transformMeta = $methodExtractor->fetch(Meta::class)) {
-            $filteredTags = array_diff($tags, $transformMeta->tags);
-            if (count($filteredTags) === count($tags)) {
-                continue;
-            }
-            /** @var \ReflectionNamedType $reflectionMethodType */
-            $reflectionMethodType = $method->getReturnType();
-            $methodType = $reflectionMethodType->getName();
-            $transformMeta->returnType = $methodType;
-            $transformMeta->allowsNull = $reflectionMethodType->allowsNull();
-            $transformer = $this->grabTransformer($transformMeta);
-            $transformer->transform($data, $transformMeta);
-        }
-    }
-
-    protected function grabTransformer(Meta $meta): TransformerInterface
-    {
-        $storage = TransformerResolverStorage::getInstance();
-        $resolver = $storage->get($meta::TYPE);
-        return $resolver->resolve($meta);
-    }
-
-    private function getValueByPath($data, string $path)
-    {
-        try {
-            return $this->propertyAccessor->getValue($data, $path);
-        } catch (\Throwable $e) {
+        if (null === $value) {
             return null;
         }
+        $path = is_array($value) && 0 === mb_substr_count($path, '.') &&
+        false === mb_strpos($path, '[')
+            ? "[{$path}]"
+            : $path;
+        return $this->propertyAccessor->getValue($value, $path);
     }
 
-    private function grabSchema(object $object, array $tags): ?Schema
+    /**
+     * @return Meta[]
+     */
+    private function grabTransformMetas(mixed $data, string $propertyPath): array
     {
-        $classExtractor = new ClassExtractor($object::class);
-        /** @var Schema $schema */
-        while ($schema = $classExtractor->fetch(Schema::class)) {
-            $filteredTags = array_diff($tags, $schema->tags);
-            if (count($filteredTags) === count($tags)) {
-                continue;
-            }
-            return $schema;
-        }
-
-        return null;
-    }
-
-    private function grabDataPath(\ReflectionProperty $property, array $tags): ?string
-    {
-        $propertyName = $property->getName();
-        $propertyExtractor = new PropertyExtractor($property->class, $propertyName);
-        /** @var DataPath $schema */
-        while ($dataPath = $propertyExtractor->fetch(DataPath::class)) {
-            $filteredTags = array_diff($tags, $dataPath->tags);
-            if (count($filteredTags) === count($tags)) {
-                continue;
-            }
-            return $dataPath->path;
-        }
-
-        return null;
-    }
-
-    private function grabMethodDataPath(ReflectionMethod $method, array $tags): ?string
-    {
-        $methodName = $method->getName();
-        $methodExtractor = new MethodExtractor($method->class, $methodName);
-        /** @var DataPath $schema */
-        while ($dataPath = $methodExtractor->fetch(DataPath::class)) {
-            $filteredTags = array_diff($tags, $dataPath->tags);
-            if (count($filteredTags) === count($tags)) {
-                continue;
-            }
-            return $dataPath->path;
-        }
-
-        return null;
-    }
-
-    private function grabGetterName(object $object, string $sourceName): ?string
-    {
-        $prefixes = ['get', 'has', 'is'];
-        foreach ($prefixes as $prefix) {
-            if (method_exists($object, $prefix . ucfirst($sourceName))) {
-                return $prefix . ucfirst($sourceName);
+        $result = [];
+        $propertyName = $propertyPath;
+        $propertyPathParts = explode('.', $propertyPath);
+        if (count($propertyPathParts) > 1) {
+            $propertyName = array_shift($propertyPathParts);
+            $pathToObject = implode('.', $propertyPathParts);
+            $object = $this->grabValue($data, $pathToObject);
+            if (!is_object($object)) {
+                return [];
             }
         }
-        return null;
+
+        if (!is_object($data)) {
+            return [];
+        }
+
+        if (property_exists($data, $propertyName)) {
+            $reflectionProperty = new ReflectionProperty($data, $propertyName);
+            $methodExtractor = new PropertyExtractor($reflectionProperty->class, $propertyName);
+            while ($meta = $methodExtractor->fetch(Meta::class)) {
+                $result[] = $meta;
+            }
+            if ($result) {
+                return $result;
+            }
+        }
+
+        foreach (['get', 'has', 'is'] as $prefix) {
+            $methodName = $prefix . ucfirst($propertyName);
+            if (method_exists($data, $methodName)) {
+                $reflectionMethod = new \ReflectionMethod($data, $methodName);
+                $methodExtractor = new MethodExtractor($reflectionMethod->class, $methodName);
+                while ($meta = $methodExtractor->fetch(Meta::class)) {
+                    $result[] = $meta;
+                }
+            }
+            if ($result) {
+                return $result;
+            }
+        }
+
+        return [];
     }
 }

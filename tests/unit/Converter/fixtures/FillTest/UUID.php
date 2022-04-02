@@ -11,4 +11,9 @@ class UUID
     {
         $this->id = $id;
     }
+
+    public function __toString(): string
+    {
+        return $this->id;
+    }
 }

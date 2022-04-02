@@ -2,17 +2,16 @@
 
 namespace Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest;
 
-use Rinsvent\DTO2Data\Attribute\DataPath;
 use Rinsvent\DTO2Data\Attribute\PropertyPath;
-use Rinsvent\DTO2Data\Transformer\DateTimeFormat;
-use Rinsvent\DTO2Data\Transformer\Trim;
+use Rinsvent\Transformer\Transformer\DateTimeFormat;
+use Rinsvent\Transformer\Transformer\ToString;
+use Rinsvent\Transformer\Transformer\Trim;
 
 #[HelloSchema]
 class HelloRequest
 {
     #[Trim]
     public string $surname;
-    #[DataPath('fake_age')]
     public int $age;
     public array $emails;
     public array $authors;
@@ -20,7 +19,7 @@ class HelloRequest
     public array $authors3;
     public BuyRequest $buy;
     public BarInterface $bar;
-    #[PropertyPath(path: 'uuid.id')]
+    #[ToString()]
     public UUID $uuid;
     public Collection $collection;
     #[DateTimeFormat]
@@ -28,7 +27,6 @@ class HelloRequest
 
     #[Trim]
     private string $psurname;
-    #[DataPath('pfake_age')]
     private int $page;
     private array $pemails;
     private array $pauthors;
@@ -36,7 +34,7 @@ class HelloRequest
     private array $pauthors3;
     private BuyRequest $pbuy;
     private BarInterface $pbar;
-    #[PropertyPath(path: 'puuid.id')]
+    #[ToString()]
     private UUID $puuid;
     private Collection $pcollection;
     #[DateTimeFormat]
@@ -164,7 +162,6 @@ class HelloRequest
     }
 
     #[Trim]
-    #[DataPath('fake_Pdevdo')]
     public function getPdevdo(): string
     {
         return '       getPdevdo';

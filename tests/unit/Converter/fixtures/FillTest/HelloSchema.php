@@ -9,7 +9,7 @@ class HelloSchema extends Schema
 {
     public ?array $baseMap = [
         'surname',
-        'age',
+        'fake_age' => 'age',
         'emails',
         'authors' => [
             'name',
@@ -33,7 +33,7 @@ class HelloSchema extends Schema
         'createdAt',
 
         'psurname',
-        'page',
+        'pfake_age' => 'page',
         'pemails',
         'pauthors' => [
             'name',
@@ -56,6 +56,6 @@ class HelloSchema extends Schema
         ],
         'pcreatedAt',
 
-        'pdevdo'
+        'fake_Pdevdo' => 'pdevdo'
     ];
 }

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Rinsvent\DTO2Data\Attribute;
 
@@ -9,8 +10,6 @@ class Schema
 
     public function __construct(
         public ?array $map = null,
-        /** @var string[] $tags */
-        public array $tags = ['default']
     ) {
         $this->map = $map ?? $this->baseMap;
     }

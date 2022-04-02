@@ -9,6 +9,7 @@ use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\BuyRequest;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\Collection;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\CollectionItem;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\HelloRequest;
+use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\HelloSchema;
 use Rinsvent\DTO2Data\Tests\unit\Converter\fixtures\FillTest\UUID;
 
 class FillTest extends \Codeception\Test\Unit
@@ -107,7 +108,7 @@ class FillTest extends \Codeception\Test\Unit
         $helloRequest->setPcreatedAt(new \DateTimeImmutable('2020-05-21 13:36:22'));
 
 
-        $dto = $dto2DataConverter->convert($helloRequest);
+        $dto = $dto2DataConverter->convert($helloRequest, HelloSchema::class);
         // codecept_debug(json_encode($dto));
 
         $this->assertEquals([
@@ -134,7 +135,14 @@ class FillTest extends \Codeception\Test\Unit
                     "name" => "Sapkovsky"
                 ]
             ],
-            "authors3" => [],
+            "authors3" => [
+                [
+                    "name" => "Tolkien"
+                ],
+                [
+                    "name" => "Sapkovsky"
+                ]
+            ],
             "buy" => [
                 "phrase" => "Buy buy!!!",
                 "length" => 10,
@@ -180,7 +188,14 @@ class FillTest extends \Codeception\Test\Unit
                     "name" => "Sapkovsky"
                 ]
             ],
-            "pauthors3" => [],
+            "pauthors3" => [
+                [
+                    "name" => "Tolkien"
+                ],
+                [
+                    "name" => "Sapkovsky"
+                ]
+            ],
             "pbuy" => [
                 "phrase" => "Buy buy!!!",
                 "length" => 10,

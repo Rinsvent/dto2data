@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Rinsvent\DTO2Data\Attribute;
 
@@ -9,5 +10,6 @@ class PropertyPath
         public string $path,
         /** @var string[] $tags */
         public array $tags = ['default']
-    ) {}
+    ) {
+    }
 }
