@@ -6,11 +6,13 @@ namespace Rinsvent\DTO2Data\Attribute;
 #[\Attribute(\Attribute::TARGET_ALL|\Attribute::IS_REPEATABLE)]
 class Schema
 {
-    public ?array $baseMap = null;
-
     public function __construct(
         public ?array $map = null,
     ) {
-        $this->map = $map ?? $this->baseMap;
+    }
+
+    public function getMap(): array
+    {
+        return $this->map;
     }
 }
