@@ -10,7 +10,7 @@
         "symfony/string": "^5.3",
         "rinsvent/attribute-extractor": "^0.0",
         "rinsvent/transformer": "^0.0",
-        "symfony/property-access": "^6.0"
+        "symfony/property-access": "^5.4|^6.0"
     },
     "require-dev": {
         "codeception/codeception": "^4.1",
