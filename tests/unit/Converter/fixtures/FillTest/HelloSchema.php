@@ -7,7 +7,7 @@ use Rinsvent\DTO2Data\Attribute\Schema;
 #[\Attribute(\Attribute::TARGET_ALL|\Attribute::IS_REPEATABLE)]
 class HelloSchema extends Schema
 {
-    public ?array $baseMap = [
+    protected array $baseMap = [
         'surname',
         'fake_age' => 'age',
         'emails',

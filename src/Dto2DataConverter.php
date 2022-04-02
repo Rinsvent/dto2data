@@ -34,23 +34,23 @@ class Dto2DataConverter
                 'Schema should be instance of Rinsvent\DTO2Data\Attribute\Schema'
             );
         }
-        return $this->convertByMap($data, $schema->map);
+        return $this->convertByMap($data, $schema->getMap(), $schema->getTags($data));
     }
 
-    private function convertByMap($data, array $map): array
+    private function convertByMap($data, array $map, array $tags): array
     {
         $result = [];
         if (is_iterable($data)) {
             foreach ($data as $item) {
-                $result[] = $this->processItem($item, $map);
+                $result[] = $this->processItem($item, $map, $tags);
             }
         } else {
-            $result = $this->processItem($data, $map);
+            $result = $this->processItem($data, $map, $tags);
         }
         return $result;
     }
 
-    private function processItem($data, array $map): array
+    private function processItem($data, array $map, array $tags): array
     {
         $result = [];
         foreach ($map as $key => $item) {
@@ -59,16 +59,16 @@ class Dto2DataConverter
                     // key -> propertyPath (===).
                     case is_int($key) && is_string($item):
                         $result[$item] = $this->grabValue($data, $item);
-                        $result[$item] = $this->transform($data, $item, $result[$item]);
+                        $result[$item] = $this->transform($data, $item, $result[$item], $tags);
                         break;
                     // key -> propertyPath (!==)
                     case is_string($key) && is_string($item):
                         $result[$key] = $this->grabValue($data, $item);
-                        $result[$key] = $this->transform($data, $item, $result[$key]);
+                        $result[$key] = $this->transform($data, $item, $result[$key], $tags);
                         break;
                     // key -> recursive data processing
                     case is_string($key) && is_array($item):
-                        $result[$key] = $this->convertByMap($this->grabValue($data, $key), $item);
+                        $result[$key] = $this->convertByMap($this->grabValue($data, $key), $item, $tags);
                         break;
                     // key -> virtual field
                     case is_string($key) && is_callable($item):
@@ -96,11 +96,11 @@ class Dto2DataConverter
         return $result;
     }
 
-    private function transform(object|array|null $data, string $path, mixed $value): mixed
+    private function transform(object|array|null $data, string $path, mixed $value, array $tags): mixed
     {
         $metas = $this->grabTransformMetas($data, $path);
         foreach ($metas as $meta) {
-            $value = $this->transformer->transform($value, $meta);
+            $value = $this->transformer->transform($value, $meta, $tags);
         }
         return $value;
     }
